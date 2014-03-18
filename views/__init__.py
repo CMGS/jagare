@@ -24,7 +24,7 @@ Views
 from views import init
 #from views import diff
 #from views import mixes
-#from views import clone
+from views import clone
 #from views import config
 #from views import ls_tree
 #from views import rev_list
@@ -37,7 +37,7 @@ def init_view(app):
     app.register_blueprint(init.bp, url_prefix = '/<path:name>/init')
     #app.register_blueprint(diff.bp, url_prefix = '/<path:name>/diff')
     #app.register_blueprint(mixes.bp, url_prefix = '/<path:name>')
-    #app.register_blueprint(clone.bp, url_prefix = '/<path:name>/clone')
+    app.register_blueprint(clone.bp, url_prefix = '/<path:name>/clone')
     #app.register_blueprint(config.bp, url_prefix = '/<path:name>/config')
     #app.register_blueprint(ls_tree.bp, url_prefix = '/<path:name>/ls-tree')
     #app.register_blueprint(rev_list.bp, url_prefix = '/<path:name>/rev-list')
