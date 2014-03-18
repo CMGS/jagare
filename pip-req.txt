@@ -1,9 +1,13 @@
+Cython==0.20.1
 Flask==0.10.1
 Jinja2==2.7.2
 MarkupSafe==0.19
 PyYAML==3.10
 Werkzeug==0.9.4
 -e git+git@github.com:CMGS/ellen.git@2da9eb34d2d11f990b2bc34f63c0f8566141fd3f#egg=ellen-master
+gevent==1.1
+greenlet==0.4.2
+gunicorn==18.0
 itsdangerous==0.23
 mime==0.0.3
 pygit2==0.20.2
