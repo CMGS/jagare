@@ -1,0 +1,5 @@
+DEBUG: True
+UPLOAD_FOLDER: permdir/.upload_cache
+MAX_CONTENT_LENGTH: 268435456
+
+REPOS_PATH: permdir
