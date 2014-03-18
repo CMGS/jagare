@@ -26,9 +26,10 @@ from flask import make_response
 
 from pygit2 import is_repository
 
+from ellen.repo import Jagare
+
 from error import JagareError
 from utils.git import endwith_git
-from utils.git import GitRepository
 
 def jsonize(func):
     '''将函数返回的字典转化为 json 字符串。'''
@@ -114,8 +115,8 @@ class require_project_name(object):
 
             repository_exist = is_repository(repository_path)
             if repository_exist:
-                repository = GitRepository(repository_path)
-                if repository.is_empty and self.require_not_empty and self.required:
+                repository = Jagare(repository_path)
+                if repository.empty and self.require_not_empty and self.required:
                     raise JagareError("Repository is empty", 500)
                 if self.need_object:
                     return func(repository = repository, exists = True, *w, **kw)
