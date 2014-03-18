@@ -109,9 +109,7 @@ class require_project_name(object):
             if repository_name == None:
                 raise JagareError("`%s` is required." % self.name, 400)
 
-            permdir_path = config.REPOS_PATH
-
-            repository_path = os.path.join(permdir_path, repository_name)
+            repository_path = os.path.join(config.REPOS_PATH, repository_name)
             repository_path = endwith_git(repository_path)
 
             repository_exist = is_repository(repository_path)

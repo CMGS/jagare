@@ -3,4 +3,4 @@
 syncdb_dumps.bak
 local_config.yaml
 test.py
-permdir
+repos

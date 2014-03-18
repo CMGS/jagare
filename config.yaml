@@ -1,5 +1,5 @@
 DEBUG: True
-UPLOAD_FOLDER: permdir/.upload_cache
+UPLOAD_FOLDER: repos/.upload_cache
 MAX_CONTENT_LENGTH: 268435456
 
-REPOS_PATH: permdir
+REPOS_PATH: repos

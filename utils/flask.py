@@ -19,8 +19,6 @@ def make_message_response(message, **kwargs):
     return make_response(json.jsonify(response_dict), 200)
 
 class MethodView(_):
-    def __init__(self, module, tmpl):
-        super(MethodView, self).__init__()
 
     @classmethod
     def as_view(cls, name, *class_args, **class_kwargs):
