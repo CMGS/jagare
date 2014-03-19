@@ -10,19 +10,17 @@ from ellen.repo import Jagare
 from error import JagareError
 
 from utils.git import endwith_git
+from utils.git import is_repository
 
 from utils.flask import MethodView
 from utils.flask import make_message_response
 
-from utils.decorators import jsonize
-from utils.decorators import require_project_name
-
 class CloneView(MethodView):
     '''`git clone` 操作。'''
 
-    decorators = [require_project_name("name", need_object = False, required = False), jsonize]
+    decorators = []
 
-    def post(self, repository, exists, clone_from):
+    def post(self, name, clone_from):
         '''
         **POST** `/<path:name>/clone/<path:clone_from>`
 
@@ -36,13 +34,21 @@ class CloneView(MethodView):
 
             clone 的项目地址。
         '''
-        target_path = repository
+        target_path = os.path.join(config.REPOS_PATH, name)
+        target_path = endwith_git(target_path)
 
         clone_path = os.path.join(config.REPOS_PATH, clone_from)
         clone_path = endwith_git(clone_path)
 
-        if exists:
+        repository_exist = is_repository(target_path)
+
+        if repository_exist:
             raise JagareError("repository already exists", 409)
+
+        clone_repository_exist = is_repository(clone_path)
+
+        if not clone_repository_exist:
+            raise JagareError("clone repository does not exist", 400)
 
         jagare = Jagare(clone_path)
         jagare.clone(target_path, bare=True)

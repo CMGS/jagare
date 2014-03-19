@@ -17,6 +17,7 @@ git
 
 from __future__ import absolute_import
 
+import os
 import magic
 from datetime import datetime
 
@@ -170,3 +171,14 @@ class GitRepository(Repository):
         except ValueError:
             raise JagareError("sha not found", 400)
 
+def is_repository(d):
+    '''Checking a directiory wether is a git repository'''
+    isdir = os.path.isdir
+    join = os.path.join
+    isfile = os.path.isfile
+    islink = os.path.islink
+    if isdir(d) and isdir(join(d, 'objects')) and isdir(join(d, 'refs')):
+        headref = join(d, 'HEAD')
+        return isfile(headref) or (islink(headref) and
+                                   os.readlink(headref).startswith('refs'))
+    return False
