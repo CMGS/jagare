@@ -17,6 +17,7 @@ from pygit2 import GIT_OBJ_TAG
 from pygit2 import GIT_OBJ_BLOB
 from pygit2 import GIT_OBJ_TREE
 from pygit2 import GIT_OBJ_COMMIT
+from pygit2 import GIT_SORT_TOPOLOGICAL
 
 from jagare.error import JagareError
 from jagare.utils.git import format_commit
@@ -28,28 +29,6 @@ TREE_ORDER = {
     'submodule' : 2, \
     'blob'      : 3, \
 }
-
-def calculate_commit(entry, commit, tree_list, wait_query_entry):
-    index, entry = entry
-    path = entry["path"]
-    try:
-        commit_obj = commit.tree[path]
-    except KeyError:
-        return
-    count = 0
-    for p in commit.parents:
-        try:
-            parent_obj = p.tree[path]
-        except KeyError:
-            count = count + 1
-            continue
-        if commit.tree.oid == p.tree.oid:
-            continue
-        if commit_obj.oid != parent_obj.oid:
-            count = count + 1
-    if count == len(commit.parents):
-        tree_list[entry["index"]]["commit"] = format_commit(commit.hex, commit, None)
-        wait_query_entry.pop(index)
 
 class LsTree(object):
 
@@ -111,21 +90,27 @@ class LsTree(object):
             return 'github-ent'
         return netloc
 
-    def _format_with_last_commit(self, repository, ref, tree_list, to_commit):
-        for idx, entry in enumerate(tree_list):
-            tree_list[idx]["commit"] = None
-            tree_list[idx]["index"] = idx
+    def _calc_is_changed(self, commit, path, ret):
+        if commit.is_changed([path], no_diff=True)[0]:
+            ret[path] = 1
 
-        from jagare.views.rev_list import RevList
-        rev_list = RevList()
+    def _format_with_last_commit(self, repository, ret_tree, to_commit):
+        walker = repository.walk(to_commit.oid, GIT_SORT_TOPOLOGICAL)
+        paths = [k for k, v in ret_tree.iteritems()]
+        ret = {}
 
-        def get_last_commit(repository, ref, entry):
-            path = entry['path']
-            entry['commit'] = rev_list.get_rev_list(repository, ref, path, max_count=1)[0]
-
-        spawns = [gevent.spawn(get_last_commit, repository, ref, entry) for entry in tree_list]
-        gevent.joinall(spawns)
-        return tree_list
+        for commit in walker:
+            spawns = [gevent.spawn(self._calc_is_changed, commit, path, ret) for path in paths]
+            gevent.joinall(spawns)
+            if not ret:
+                continue
+            fc = format_commit(commit.hex, commit, None)
+            for path, r in ret.iteritems():
+                ret_tree[path]['commit'] = fc
+                paths.remove(path)
+            if not paths:
+                break
+            ret = {}
 
     def get_tree_list(self, repository, exists, ref, \
                       recursive = None, size = None, name_only = None, \
@@ -153,7 +138,7 @@ class LsTree(object):
 
         walker = self._walk_tree(tree_obj)
 
-        tree_list = []
+        ret_tree = {}
         submodule_obj = None
 
         for index, (entry, path) in enumerate(walker):
@@ -185,20 +170,20 @@ class LsTree(object):
                     continue
 
             if name_only:
-                tree_list.append(path)
+                ret_tree['path'] = path
                 continue
 
             item = {
-                "mode" : mode, 
-                "type" : objtype, 
-                "sha"  : entry.hex, 
-                "path" : path, 
+                "mode" : mode, \
+                "type" : objtype, \
+                "sha"  : entry.hex, \
+                "path" : path, \
                 "name" : entry.name
             }
 
             if item['type'] == 'submodule':
                 submodule = self._parse_submodule(repository, submodule_obj)
-                section_name = 'submodule "{submodule_name}"'.format(submodule_name = item['name'])
+                section_name = 'submodule "{submodule_name}"'.format(submodule_name = path)
 
                 if submodule.has_section(section_name):
                     item['submodule'] = dict(submodule.items(section_name))
@@ -214,14 +199,16 @@ class LsTree(object):
                 else:
                     item['size'] = '-'
 
-            tree_list.append(item)
+            ret_tree[path] = item
 
-        if not name_only:
-            tree_list = sorted(tree_list, key = lambda i: TREE_ORDER[i['type']])
+        if name_only:
+            return ret_tree.values()
 
         if with_commit and commit_obj:
-            return self._format_with_last_commit(repository, ref, tree_list, commit_obj)
+            self._format_with_last_commit(repository, ret_tree, commit_obj)
 
+        tree_list = ret_tree.values()
+        tree_list.sort(key=lambda i: (TREE_ORDER[i['type']], i['name']))
         return tree_list
 
 class LsTreeView(MethodView):
@@ -247,4 +234,4 @@ ls_tree_view = LsTreeView.as_view('ls_tree')
 
 bp = Blueprint('ls_tree', __name__)
 bp.add_url_rule('/<path:ref>', view_func = ls_tree_view, methods = ["GET"])
-        
+

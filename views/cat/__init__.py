@@ -57,15 +57,20 @@ class CatByPath(MethodView):
 
     def get(self, repository, exists, ref):
         req_path = request.args.get("path", None)
+        only_type = request.args.get("only_type", False)
 
         commit = repository.revparse_single(ref)
         tree = commit.tree
 
         try:
-            entry = tree[req_path]
+            entry = tree[req_path] if req_path else tree
             obj = repository[entry.hex]
         except (KeyError, ValueError):
-            raise JagareError("request path not found.")
+            raise JagareError("request path not found.", 400)
+        if only_type:
+            return {"type" : PYGIT2_OBJ_TYPE.get(obj.type)}
+        if obj.type != GIT_OBJ_BLOB:
+            raise JagareError("not a blob obj.", 400)
         return format_blob(ref, obj, repository)
 
 class CatView(MethodView):
