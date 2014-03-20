@@ -7,7 +7,9 @@
 from flask import json
 from flask import make_response
 
-class JagareError(Exception):
+from werkzeug.exceptions import HTTPException
+
+class JagareError(HTTPException):
 
     def __init__(self, message, status_code):
 
@@ -21,6 +23,6 @@ class JagareError(Exception):
         return "<JagareError {message} HTTP {status_code}>".format(message = self.message, 
                                                                    status_code = self.status_code)
 
-    def make_response(self):
-        json_retval = json.jsonify({"message" : self.message, "error" : 1})
+    def get_response(self, environ = None):
+        json_retval = json.jsonify({"message" : self.message, "error" : True})
         return make_response(json_retval, self.status_code)

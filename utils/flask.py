@@ -13,7 +13,7 @@ from flask.views import MethodView as _
 def make_message_response(message, **kwargs):
     response_dict = {
         "message" : message,
-        "error"   : 0,
+        "error"   : False,
     }
     response_dict.update(kwargs)
     return make_response(json.jsonify(response_dict), 200)

@@ -3,3 +3,5 @@ UPLOAD_FOLDER: repos/.upload_cache
 MAX_CONTENT_LENGTH: 268435456
 
 REPOS_PATH: repos
+
+GIT_EXECUTABLE: /usr/bin/git
