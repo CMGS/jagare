@@ -4,121 +4,30 @@
 # CREATED:  11:15:30 18/06/2013
 # MODIFIED: 13:47:35 02/07/2013
 
+import os
+import shutil
+import config
+
 from flask import request
 from flask import Blueprint
 from flask import make_response
 
 from error import JagareError
 
+from ellen.repo import Jagare
+
+from utils.git import endwith_git
+from utils.git import is_repository
 from utils.flask import make_message_response
 from utils.decorators import jsonize
 from utils.decorators import require_repository
 
 bp = Blueprint('mixes', __name__)
 
-#@bp.route('', methods = ['GET'])
-#@jsonize
-#@require_project_name("name", require_not_empty = False)
-#def repo_information(repository, exists):
-#    return {"is_bare" : repository.is_bare, "is_empty" : repository.is_empty}
-#
-#@bp.route('/fetch_all', methods = ['POST'])
-#@jsonize
-#@require_project_name("name")
-#def fetch_all(repository, exists):
-#    # timeout ?
-#    for remote in repository.remotes:
-#        try:
-#            remote.fetch()
-#        except GitError:
-#            pass
-#    return make_message_response("fetch success")
-#
-#@bp.route('/add_remote/<path:remote_name>', methods = ['POST'])
-#@jsonize
-#@require_project_name("name")
-#def add_remote(repository, exists, remote_name):
-#    url = request.form.get('url', None)
-#    if not url:
-#        raise JagareError("url is required.", 400)
-#    repository.create_remote(remote_name, url)
-#    return make_message_response("add remote success")
-#
-#@bp.route('/list/tags', methods = ['GET'])
-#@jsonize
-#@require_project_name("name")
-#def list_tags(repository, exists):
-#    tags = []
-#    refs = repository.listall_references()
-#
-#    for ref in refs:
-#        if ref.startswith("refs/tags/"):
-#            # this is a tag but maybe a lightweight tag
-#            tag_obj = repository.revparse_single(ref)
-#            if isinstance(tag_obj, Commit):
-#                # lightweight tag
-#                tags.append(format_lw_tag(ref, tag_obj, repository))
-#            else:
-#                tags.append(format_tag(ref, tag_obj, repository))
-#
-#    return tags
-#
-#@bp.route('/list/branches', methods = ['GET'])
-#@jsonize
-#@require_project_name("name")
-#def list_branches(repository, exists):
-#    branches = []
-#    refs = repository.listall_references()
-#
-#    for ref in refs:
-#        if ref.startswith("refs/heads/"):
-#            branch = {}
-#            commit_obj = repository.revparse_single(ref)
-#            branch['name'] = format_short_reference_name(ref)
-#            branch['commit'] = format_commit(ref, commit_obj, repository)
-#            branches.append(branch)
-#
-#    return branches
-#
-#@bp.route('/blame/<path:ref>', methods = ['GET'])
-#@jsonize
-#@require_project_name("name")
-#def blame(repository, exists, ref):
-#    path = request.args["path"]
-#    lineno = request.args.get("lineno", None)
-#    
-#    if lineno:
-#        result = call(repository, 'blame -L %s,%s --porcelain %s -- %s' % (lineno, lineno, ref, path))
-#    else:
-#        result = call(repository, 'blame -p -CM %s -- %s' % (ref, path))
-#    return result
-#
-#@bp.route('/update-hook', methods = ['POST'])
-#@jsonize
-#@require_project_name("name")
-#def update_hook(repository, exists):
-#    link = request.form.get("link", False)
-#
-#    hook_dir = os.path.join(repository.path, 'hooks')
-#
-#    # remove hook_dir
-#    if os.path.exists(hook_dir):
-#        if os.path.islink(hook_dir):
-#            os.remove(hook_dir)
-#        else:
-#            shutil.rmtree(hook_dir)
-#    
-#    if link:
-#        try:
-#            os.symlink('/var/dae/apps/code/hub/hooks', hook_dir)
-#        except OSError:
-#            raise JagareError("Update hook failed.", 500)
-#    return make_message_response("update hook success")
-
 @bp.route('')
 @bp.route('/info')
 @jsonize
-@require_repository()
+@require_repository
 def info(repository):
     retdict = {}
     retdict["path"]  = repository.path
@@ -127,21 +36,79 @@ def info(repository):
     retdict["head"]  = str(repository.head.target) if repository.head else None
     return retdict
 
+@bp.route('/init', methods = ["POST"])
+def init(name):
+    repository_path = os.path.join(config.REPOS_PATH, name)
+    repository_path = endwith_git(repository_path)
+    
+    repository_exist = is_repository(repository_path)
+    
+    if repository_exist:
+        raise JagareError("repository already exists.", 409)
+    
+    Jagare.init(repository_path)
+    
+    return make_message_response("initialize success")
+
+@bp.route('/delete', methods = ["POST"])
+@require_repository
+def delete(repository):
+    shutil.rmtree(repository.path)
+    return make_message_response("delete success")
+
+@bp.route('/clone/<path:clone_from>', methods = ["POST"])
+def clone(name, clone_from):
+    target_path = os.path.join(config.REPOS_PATH, name)
+    target_path = endwith_git(target_path)
+    
+    clone_path = os.path.join(config.REPOS_PATH, clone_from)
+    clone_path = endwith_git(clone_path)
+    
+    repository_exist = is_repository(target_path)
+    
+    if repository_exist:
+        raise JagareError("repository already exists", 409)
+    
+    clone_repository_exist = is_repository(clone_path)
+    
+    if not clone_repository_exist:
+        raise JagareError("clone repository does not exist", 400)
+
+    jagare = Jagare(clone_path)
+    jagare.clone(target_path, bare=True)
+    
+    return make_message_response("clone success")
+
+@bp.route('/mirror/<path:url>', methods = ["POST"])
+def mirror(name, url):
+    target_path = os.path.join(config.REPOS_PATH, name)
+    target_path = endwith_git(target_path)
+
+    repository_exist = is_repository(target_path)
+    
+    if repository_exist:
+        raise JagareError("repository already exists", 409)
+
+    Jagare.mirror(url, target_path)
+    
+    return make_message_response("Mirror success.")
+
+
 @bp.route('/branches')
 @jsonize
-@require_repository()
+@require_repository
 def branches(repository):
     return repository.branches
 
 @bp.route('/tags')
 @jsonize
-@require_repository()
+@require_repository
 def tags(repository):
     return repository.tags
 
 @bp.route('/ls-tree/<path:ref>')
 @jsonize
-@require_repository()
+@require_repository
 def ls_tree(repository, ref):
     # Can't use now, bug in upstream
     path = request.args.get('path', None)
@@ -153,7 +120,7 @@ def ls_tree(repository, ref):
 
 @bp.route('/blame/<path:ref>')
 @jsonize
-@require_repository()
+@require_repository
 def blame(repository, ref):
     path = request.args.get('path', None)
     lineno = request.args.get('lineno', None, type = int)
@@ -162,33 +129,33 @@ def blame(repository, ref):
 @bp.route('/format-patch/<path:from_ref>')
 @bp.route('/format-patch/<path:from_ref>/to/<path:to_ref>')
 @jsonize
-@require_repository()
+@require_repository
 def format_patch(repository, from_ref, to_ref = 'HEAD'):
     return repository.format_patch(to_ref, from_ref)
 
 @bp.route('/sha/<path:rev>')
 @jsonize
-@require_repository()
+@require_repository
 def sha(repository, rev):
     return repository.sha(rev)
 
 @bp.route('/update-hooks/<path:path>', methods = ['POST'])
 @jsonize
-@require_repository()
+@require_repository
 def update_hooks(repository, path):
     repository.update_hooks(path)
     return make_message_response("success to update hooks")
 
 @bp.route('/show/<path:ref>')
 @jsonize
-@require_repository()
+@require_repository
 def show(repository, ref):
     return repository.show(ref)
 
 @bp.route('/rev-list/<path:to_ref>')
 @bp.route('/rev-list/<path:to_ref>/from/<path:from_ref>')
 @jsonize
-@require_repository()
+@require_repository
 def rev_list(repository, to_ref, from_ref = None):
     path = request.args.get('path', None)
     skip = request.args.get('skip', 0, type = int)
@@ -202,7 +169,7 @@ def rev_list(repository, to_ref, from_ref = None):
 
 @bp.route('/commit', methods = ['POST'])
 @jsonize
-@require_repository()
+@require_repository
 def create_commit(repository):
     branch = request.form['branch']
     parent = request.form['parent']
@@ -216,7 +183,7 @@ def create_commit(repository):
 @bp.route('/diff/<path:to_ref>')
 @bp.route('/diff/<path:to_ref>/from/<path:from_ref>')
 @jsonize
-@require_repository()
+@require_repository
 def diff(repository, to_ref, from_ref = None):
     diff = repository.diff(to_ref, from_ref)
     diff['diff'] = diff['diff'].patch
@@ -224,19 +191,19 @@ def diff(repository, to_ref, from_ref = None):
 
 @bp.route('/resolve-commit/<path:version>')
 @jsonize
-@require_repository()
+@require_repository
 def resolve_commit(repository, version):
     return repository.resolve_commit(version)
 
 @bp.route('/resolve-type/<path:version>')
 @jsonize
-@require_repository()
+@require_repository
 def resolve_type(repository, version):
     return repository.resolve_type(version)
 
 @bp.route('/branch/<path:branchName>/create', methods = ['POST'])
 @jsonize
-@require_repository()
+@require_repository
 def create_branch(repository, branchName):
     ref = request.form['ref']
     force = bool(request.form.get('force', 0, type = int))
@@ -247,14 +214,14 @@ def create_branch(repository, branchName):
 
 @bp.route('/branch/<path:branchName>/delete', methods = ['POST'])
 @jsonize
-@require_repository()
+@require_repository
 def delete_branch(repository, branchName):
     repository.delete_branch(branchName)
     return make_message_response("Branch delete success")
 
 @bp.route('/tag/<path:tagName>/create', methods = ['POST'])
 @jsonize
-@require_repository()
+@require_repository
 def create_tag(repository, tagName):
     ref = request.form['ref']
     author_name = request.form['author_name']
@@ -264,9 +231,83 @@ def create_tag(repository, tagName):
 
 @bp.route('/archive')
 @bp.route('/archive/<path:ref>')
-@require_repository()
+@require_repository
 def archive(repository, ref = 'HEAD'):
     binary = repository.archive(prefix = '', ref = ref)
     resp = make_response(binary)
     resp.headers['content-type'] = 'application/x-tar; charset=binary'
     return resp
+
+@bp.route('/push/<path:remote>/ref/<path:ref>', methods = ['POST'])
+@jsonize
+@require_repository
+def push(repository, remote, ref):
+    enviorn = request.form.to_dict()
+    return repository.push(remote, ref, enviorn)
+
+@bp.route('/merge/<path:ref>', methods = ['POST'])
+@jsonize
+@require_repository
+def merge(repository, ref):
+    msg = request.form.get('msg', 'automerge')
+    commit_msg = request.form.get('commit_msg', '')
+    no_ff = bool(request.form.get('no_ff', 0))
+    return repository.merge(ref, msg = msg, commit_msg = commit_msg, no_ff = no_ff)
+
+@bp.route('/merge-tree/<path:ours>/with/<path:theirs>', methods = ['POST'])
+@jsonize
+@require_repository
+def merge_tree(repository, ours, theirs):
+    return repository.merge_tree(ours, theirs)
+
+@bp.route('/merge-head/<path:ref>', methods = ['POST'])
+@jsonize
+@require_repository
+def merge_head(repository, ref):
+    return repository.merge_head(ref)
+
+@bp.route('/merge-commits/<path:ours>/with/<path:theirs>', methods = ['POST'])
+@jsonize
+@require_repository
+def merge_commits(repository, ours, theirs):
+    return repository.merge_commits(ours, theirs)
+
+@bp.route('/merge-base/<path:from_sha>/to/<path:to_sha>', methods = ["POST"])
+@require_repository
+def merge_base(repository, from_sha, to_sha):
+    repository.merge_base(to_sha, from_sha)
+    return make_message_response("Merged.")
+
+@bp.route('/remotes')
+@jsonize
+@require_repository
+def remotes(repository):
+    if callable(repository.remotes):
+        _remotes = repository.remotes()
+        return [dict(name = remote.name, url = remote.url) for remote in _remotes]
+    return repository.remotes
+
+@bp.route('/remote/<path:name>/fetch', methods = ["POST"])
+@require_repository
+def fetch(repository, name):
+    repository.fetch(name)
+    return make_message_response("Remote fetched successfully.")
+
+@bp.route('/remote/fetch-all', methods = ["POST"])
+@require_repository
+def fetch_all(repository):
+    repository.fetch_all()
+    return make_message_response("All remotes fetched.")
+
+@bp.route('/remote/<path:name>/create', methods = ["POST"])
+@require_repository
+def add_remote(repository, name):
+    url = request.form['url']
+    repository.add_remote(name, url)
+    return make_message_response("Remote created.")
+
+@bp.route('/detect-renamed/<path:ref>', methods = ["POST"])
+@jsonize
+@require_repository
+def detect_renamed(repository, ref):
+    return repository.detect_renamed(ref)
