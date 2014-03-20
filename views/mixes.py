@@ -116,7 +116,9 @@ def ls_tree(repository, ref):
     size = request.args.get('size', None)
     with_commit = request.args.get('with_commit', 0, type = int) == 1
     name_only = request.args.get('name_only', None)
-    return repository.ls_tree(ref, path, recursive = recursive, size = size, with_commit = with_commit, name_only = name_only)
+    return repository.ls_tree(ref, path, recursive = recursive, 
+                              size = size, with_commit = with_commit, 
+                              name_only = name_only)
 
 @bp.route('/blame/<path:ref>')
 @jsonize
@@ -165,7 +167,11 @@ def rev_list(repository, to_ref, from_ref = None):
     first_parent = request.args.get('first_parent', None)
     since = request.args.get('since', 0, type = int)
     no_merges = request.args.get('no_merges', None)
-    return repository.rev_list(to_ref, from_ref = from_ref, path = path, skip = skip, max_count = max_count, author = author, query = query, first_parent = first_parent, since = since, no_merges = no_merges)
+    return repository.rev_list(to_ref, from_ref = from_ref, path = path, 
+                               skip = skip, max_count = max_count, 
+                               author = author, query = query, 
+                               first_parent = first_parent, since = since, 
+                               no_merges = no_merges)
 
 @bp.route('/commit', methods = ['POST'])
 @jsonize
@@ -177,8 +183,34 @@ def create_commit(repository):
     author_email = request.form['author_email']
     message = request.form['message']
     reflog = request.form['reflog']
-    #TODO
-    # return repository.commit_file()
+
+    data = []
+    formData = request.form.to_dict()
+
+    for filename, fp in request.files.iteritems():
+        filename = filename.strip()
+        path = request.form['%s_path' % filename]
+        action = request.form.get('%s_action' % filename, 'insert')
+        binary = fp.stream.read()
+        data.append((path, binary, action))
+
+        formData.pop('%s_path' % filename)
+        formData.pop('%s_action' % filename)
+
+    for key, value in formData.iteritems():
+        if key.endswith('_path') or key.endswith('_action'):
+            name = key.split('_path')[0].split('_action')[0]
+
+            path = formData['%s_path' % name]
+            action = formData['%s_action' % name]
+
+            data.append((path, "", action))
+
+    repository.commit_file(branch = branch, parent = parent, 
+                      author_name = author_name, author_email = author_email, 
+                      message = message, reflog = reflog, data = data)
+
+    return make_message_response("Commit success!")
 
 @bp.route('/diff/<path:to_ref>')
 @bp.route('/diff/<path:to_ref>/from/<path:from_ref>')
@@ -227,7 +259,8 @@ def create_tag(repository, tagName):
     author_name = request.form['author_name']
     author_email = request.form['author_email']
     message = request.form['message']
-    return repository.create_tag(tagName, ref = ref, author_name = author_name, author_email = author_email, message = message)
+    return repository.create_tag(tagName, ref = ref, author_name = author_name, 
+                                 author_email = author_email, message = message)
 
 @bp.route('/archive')
 @bp.route('/archive/<path:ref>')
@@ -287,10 +320,10 @@ def remotes(repository):
         return [dict(name = remote.name, url = remote.url) for remote in _remotes]
     return repository.remotes
 
-@bp.route('/remote/<path:name>/fetch', methods = ["POST"])
+@bp.route('/remote/<path:remoteName>/fetch', methods = ["POST"])
 @require_repository
-def fetch(repository, name):
-    repository.fetch(name)
+def fetch(repository, remoteName):
+    repository.fetch(remoteName)
     return make_message_response("Remote fetched successfully.")
 
 @bp.route('/remote/fetch-all', methods = ["POST"])
@@ -299,11 +332,11 @@ def fetch_all(repository):
     repository.fetch_all()
     return make_message_response("All remotes fetched.")
 
-@bp.route('/remote/<path:name>/create', methods = ["POST"])
+@bp.route('/remote/<path:remoteName>/create', methods = ["POST"])
 @require_repository
-def add_remote(repository, name):
+def add_remote(repository, remoteName):
     url = request.form['url']
-    repository.add_remote(name, url)
+    repository.add_remote(remoteName, url)
     return make_message_response("Remote created.")
 
 @bp.route('/detect-renamed/<path:ref>', methods = ["POST"])
