@@ -111,9 +111,9 @@ def tags(repository):
 @require_repository
 def ls_tree(repository, ref):
     path = request.args.get('path', None)
-    recursive = bool(request.args.get('recursive', 0, type = int))
+    recursive = request.args.get('recursive', 0, type = int)
     size = request.args.get('size', None)
-    with_commit = bool(request.args.get('with_commit', 0, type = int))
+    with_commit = request.args.get('with_commit', 0, type = int)
     name_only = request.args.get('name_only', None)
     return repository.ls_tree(ref, path, recursive = recursive, 
                               size = size, with_commit = with_commit, 
@@ -235,7 +235,7 @@ def resolve_type(repository, version):
 @require_repository
 def create_branch(repository, branch_name):
     ref = request.form['ref']
-    force = bool(request.form.get('force', 0, type = int))
+    force = request.form.get('force', 0, type = int)
     if repository.create_branch(branch_name, ref, force):
         return make_message_response("Branch create success.")
     else:
@@ -281,7 +281,7 @@ def push(repository, remote, ref):
 def merge(repository, ref):
     msg = request.form.get('msg', 'automerge')
     commit_msg = request.form.get('commit_msg', '')
-    no_ff = bool(request.form.get('no_ff', 0))
+    no_ff = request.form.get('no_ff', 0)
     return repository.merge(ref, msg = msg, commit_msg = commit_msg, no_ff = no_ff)
 
 @bp.route('/merge-tree/<path:ours>/with/<path:theirs>', methods = ['POST'])
