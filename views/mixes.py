@@ -6,6 +6,9 @@
 
 from flask import request
 from flask import Blueprint
+from flask import make_response
+
+from error import JagareError
 
 from utils.flask import make_message_response
 from utils.decorators import jsonize
@@ -112,6 +115,18 @@ bp = Blueprint('mixes', __name__)
 #            raise JagareError("Update hook failed.", 500)
 #    return make_message_response("update hook success")
 
+@bp.route('')
+@bp.route('/info')
+@jsonize
+@require_repository()
+def info(repository):
+    retdict = {}
+    retdict["path"]  = repository.path
+    retdict["empty"] = repository.empty
+    retdict["bare"]  = repository.bare
+    retdict["head"]  = str(repository.head.target) if repository.head else None
+    return retdict
+
 @bp.route('/branches')
 @jsonize
 @require_repository()
@@ -139,15 +154,16 @@ def ls_tree(repository, ref):
 @bp.route('/blame/<path:ref>')
 @jsonize
 @require_repository()
-def rev_list(repository, ref):
+def blame(repository, ref):
     path = request.args.get('path', None)
     lineno = request.args.get('lineno', None, type = int)
     return repository.blame(ref, path, lineno)
 
+@bp.route('/format-patch/<path:from_ref>')
 @bp.route('/format-patch/<path:from_ref>/to/<path:to_ref>')
 @jsonize
 @require_repository()
-def format_patch(repository, from_ref, to_ref):
+def format_patch(repository, from_ref, to_ref = 'HEAD'):
     return repository.format_patch(to_ref, from_ref)
 
 @bp.route('/sha/<path:rev>')
@@ -162,3 +178,95 @@ def sha(repository, rev):
 def update_hooks(repository, path):
     repository.update_hooks(path)
     return make_message_response("success to update hooks")
+
+@bp.route('/show/<path:ref>')
+@jsonize
+@require_repository()
+def show(repository, ref):
+    return repository.show(ref)
+
+@bp.route('/rev-list/<path:to_ref>')
+@bp.route('/rev-list/<path:to_ref>/from/<path:from_ref>')
+@jsonize
+@require_repository()
+def rev_list(repository, to_ref, from_ref = None):
+    path = request.args.get('path', None)
+    skip = request.args.get('skip', 0, type = int)
+    max_count = request.args.get('max_count', 0, type = int)
+    author = request.args.get('author', None)
+    query = request.args.get('query', None)
+    first_parent = request.args.get('first_parent', None)
+    since = request.args.get('since', 0, type = int)
+    no_merges = request.args.get('no_merges', None)
+    return repository.rev_list(to_ref, from_ref = from_ref, path = path, skip = skip, max_count = max_count, author = author, query = query, first_parent = first_parent, since = since, no_merges = no_merges)
+
+@bp.route('/commit', methods = ['POST'])
+@jsonize
+@require_repository()
+def create_commit(repository):
+    branch = request.form['branch']
+    parent = request.form['parent']
+    author_name = request.form['author_name']
+    author_email = request.form['author_email']
+    message = request.form['message']
+    reflog = request.form['reflog']
+    #TODO
+    # return repository.commit_file()
+
+@bp.route('/diff/<path:to_ref>')
+@bp.route('/diff/<path:to_ref>/from/<path:from_ref>')
+@jsonize
+@require_repository()
+def diff(repository, to_ref, from_ref = None):
+    diff = repository.diff(to_ref, from_ref)
+    diff['diff'] = diff['diff'].patch
+    return diff
+
+@bp.route('/resolve-commit/<path:version>')
+@jsonize
+@require_repository()
+def resolve_commit(repository, version):
+    return repository.resolve_commit(version)
+
+@bp.route('/resolve-type/<path:version>')
+@jsonize
+@require_repository()
+def resolve_type(repository, version):
+    return repository.resolve_type(version)
+
+@bp.route('/branch/<path:branchName>/create', methods = ['POST'])
+@jsonize
+@require_repository()
+def create_branch(repository, branchName):
+    ref = request.form['ref']
+    force = bool(request.form.get('force', 0, type = int))
+    if repository.create_branch(branchName, ref, force):
+        return make_message_response("Branch create success.")
+    else:
+        raise JagareError("Branch create failed.")
+
+@bp.route('/branch/<path:branchName>/delete', methods = ['POST'])
+@jsonize
+@require_repository()
+def delete_branch(repository, branchName):
+    repository.delete_branch(branchName)
+    return make_message_response("Branch delete success")
+
+@bp.route('/tag/<path:tagName>/create', methods = ['POST'])
+@jsonize
+@require_repository()
+def create_tag(repository, tagName):
+    ref = request.form['ref']
+    author_name = request.form['author_name']
+    author_email = request.form['author_email']
+    message = request.form['message']
+    return repository.create_tag(tagName, ref = ref, author_name = author_name, author_email = author_email, message = message)
+
+@bp.route('/archive')
+@bp.route('/archive/<path:ref>')
+@require_repository()
+def archive(repository, ref = 'HEAD'):
+    binary = repository.archive(prefix = '', ref = ref)
+    resp = make_response(binary)
+    resp.headers['content-type'] = 'application/x-tar; charset=binary'
+    return resp
