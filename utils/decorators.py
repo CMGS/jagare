@@ -20,6 +20,7 @@ import config
 from functools import wraps
 
 from flask import json
+from flask import Response
 from flask import make_response
 
 from ellen.repo import Jagare
@@ -33,6 +34,8 @@ def jsonize(func):
     @wraps(func)
     def _(*a, **kw):
         retval = func(*a, **kw)
+        if isinstance(retval, Response):
+            return retval
         retdict = {
             "data" : retval,
             "error" : False
@@ -41,28 +44,22 @@ def jsonize(func):
 
     return _
 
-class require_repository(object):
-    def __init__(self, requestName = 'name'):
-        self.requestName = requestName
+def require_repository(func):
+    @wraps(func)
+    def _(*w, **kw):
+        repository_name = kw.pop("name") if kw.has_key("name") else None
         
-    def __call__(self, func):
-        @wraps(func)
-        def _(*w, **kw):
-            if kw.has_key(self.requestName):
-                repository_name = kw.pop(self.requestName)
-            
-            if not repository_name:
-                raise JagareError("`%s` is required." % self.name, 400)
-            
-            repository_path = os.path.join(config.REPOS_PATH, repository_name)
-            repository_path = endwith_git(repository_path)
-            repository_exist = is_repository(repository_path)
-
-            if not repository_exist:
-                raise JagareError("Repository not found.", 404)
-
-            repository = Jagare(repository_path)
-
-            return func(repository = repository, *w, **kw)
-        return _
-
+        if not repository_name:
+            raise JagareError("Repository name is required.", 400)
+        
+        repository_path = os.path.join(config.REPOS_PATH, repository_name)
+        repository_path = endwith_git(repository_path)
+        repository_exist = is_repository(repository_path)
+    
+        if not repository_exist:
+            raise JagareError("Repository not found.", 404)
+    
+        repository = Jagare(repository_path)
+    
+        return func(repository = repository, *w, **kw)
+    return _
