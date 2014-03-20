@@ -185,7 +185,7 @@ def create_commit(repository):
     reflog = request.form['reflog']
 
     data = []
-    formData = request.form.to_dict()
+    form_data = request.form.to_dict()
 
     for filename, fp in request.files.iteritems():
         filename = filename.strip()
@@ -194,15 +194,15 @@ def create_commit(repository):
         binary = fp.stream.read()
         data.append((path, binary, action))
 
-        formData.pop('%s_path' % filename)
-        formData.pop('%s_action' % filename)
+        form_data.pop('%s_path' % filename)
+        form_data.pop('%s_action' % filename)
 
-    for key, value in formData.iteritems():
+    for key, value in form_data.iteritems():
         if key.endswith('_path') or key.endswith('_action'):
             name = key.split('_path')[0].split('_action')[0]
 
-            path = formData['%s_path' % name]
-            action = formData['%s_action' % name]
+            path = form_data['%s_path' % name]
+            action = form_data['%s_action' % name]
 
             data.append((path, "", action))
 
@@ -233,33 +233,33 @@ def resolve_commit(repository, version):
 def resolve_type(repository, version):
     return repository.resolve_type(version)
 
-@bp.route('/branch/<path:branchName>/create', methods = ['POST'])
+@bp.route('/branch/<path:branch_name>/create', methods = ['POST'])
 @jsonize
 @require_repository
-def create_branch(repository, branchName):
+def create_branch(repository, branch_name):
     ref = request.form['ref']
     force = bool(request.form.get('force', 0, type = int))
-    if repository.create_branch(branchName, ref, force):
+    if repository.create_branch(branch_name, ref, force):
         return make_message_response("Branch create success.")
     else:
         raise JagareError("Branch create failed.")
 
-@bp.route('/branch/<path:branchName>/delete', methods = ['POST'])
+@bp.route('/branch/<path:branch_name>/delete', methods = ['POST'])
 @jsonize
 @require_repository
-def delete_branch(repository, branchName):
-    repository.delete_branch(branchName)
+def delete_branch(repository, branch_name):
+    repository.delete_branch(branch_name)
     return make_message_response("Branch delete success")
 
-@bp.route('/tag/<path:tagName>/create', methods = ['POST'])
+@bp.route('/tag/<path:tag_name>/create', methods = ['POST'])
 @jsonize
 @require_repository
-def create_tag(repository, tagName):
+def create_tag(repository, tag_name):
     ref = request.form['ref']
     author_name = request.form['author_name']
     author_email = request.form['author_email']
     message = request.form['message']
-    return repository.create_tag(tagName, ref = ref, author_name = author_name, 
+    return repository.create_tag(tag_name, ref = ref, author_name = author_name, 
                                  author_email = author_email, message = message)
 
 @bp.route('/archive')
@@ -320,10 +320,10 @@ def remotes(repository):
         return [dict(name = remote.name, url = remote.url) for remote in _remotes]
     return repository.remotes
 
-@bp.route('/remote/<path:remoteName>/fetch', methods = ["POST"])
+@bp.route('/remote/<path:remote_name>/fetch', methods = ["POST"])
 @require_repository
-def fetch(repository, remoteName):
-    repository.fetch(remoteName)
+def fetch(repository, remote_name):
+    repository.fetch(remote_name)
     return make_message_response("Remote fetched successfully.")
 
 @bp.route('/remote/fetch-all', methods = ["POST"])
@@ -332,11 +332,11 @@ def fetch_all(repository):
     repository.fetch_all()
     return make_message_response("All remotes fetched.")
 
-@bp.route('/remote/<path:remoteName>/create', methods = ["POST"])
+@bp.route('/remote/<path:remote_name>/create', methods = ["POST"])
 @require_repository
-def add_remote(repository, remoteName):
+def add_remote(repository, remote_name):
     url = request.form['url']
-    repository.add_remote(remoteName, url)
+    repository.add_remote(remote_name, url)
     return make_message_response("Remote created.")
 
 @bp.route('/detect-renamed/<path:ref>', methods = ["POST"])
