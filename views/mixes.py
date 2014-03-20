@@ -110,11 +110,10 @@ def tags(repository):
 @jsonize
 @require_repository
 def ls_tree(repository, ref):
-    # Can't use now, bug in upstream
     path = request.args.get('path', None)
-    recursive = request.args.get('recursive', 0, type = int) == 1
+    recursive = bool(request.args.get('recursive', 0, type = int))
     size = request.args.get('size', None)
-    with_commit = request.args.get('with_commit', 0, type = int) == 1
+    with_commit = bool(request.args.get('with_commit', 0, type = int))
     name_only = request.args.get('name_only', None)
     return repository.ls_tree(ref, path, recursive = recursive, 
                               size = size, with_commit = with_commit, 
@@ -191,8 +190,7 @@ def create_commit(repository):
         filename = filename.strip()
         path = request.form['%s_path' % filename]
         action = request.form.get('%s_action' % filename, 'insert')
-        binary = fp.stream.read()
-        data.append((path, binary, action))
+        data.append((path, fp.stream, action))
 
         form_data.pop('%s_path' % filename)
         form_data.pop('%s_action' % filename)
@@ -218,7 +216,6 @@ def create_commit(repository):
 @require_repository
 def diff(repository, to_ref, from_ref = None):
     diff = repository.diff(to_ref, from_ref)
-    diff['diff'] = diff['diff'].patch
     return diff
 
 @bp.route('/resolve-commit/<path:version>')
@@ -315,9 +312,6 @@ def merge_base(repository, from_sha, to_sha):
 @jsonize
 @require_repository
 def remotes(repository):
-    if callable(repository.remotes):
-        _remotes = repository.remotes()
-        return [dict(name = remote.name, url = remote.url) for remote in _remotes]
     return repository.remotes
 
 @bp.route('/remote/<path:remote_name>/fetch', methods = ["POST"])
