@@ -40,14 +40,14 @@ def info(repository):
 def init(name):
     repository_path = os.path.join(config.REPOS_PATH, name)
     repository_path = endwith_git(repository_path)
-    
+
     repository_exist = is_repository(repository_path)
-    
+
     if repository_exist:
         raise JagareError("repository already exists.", 409)
-    
+
     Jagare.init(repository_path)
-    
+
     return make_message_response("initialize success")
 
 @bp.route('/delete', methods = ["POST"])
@@ -60,23 +60,23 @@ def delete(repository):
 def clone(name, clone_from):
     target_path = os.path.join(config.REPOS_PATH, name)
     target_path = endwith_git(target_path)
-    
+
     clone_path = os.path.join(config.REPOS_PATH, clone_from)
     clone_path = endwith_git(clone_path)
-    
+
     repository_exist = is_repository(target_path)
-    
+
     if repository_exist:
         raise JagareError("repository already exists", 409)
-    
+
     clone_repository_exist = is_repository(clone_path)
-    
+
     if not clone_repository_exist:
         raise JagareError("clone repository does not exist", 400)
 
     jagare = Jagare(clone_path)
     jagare.clone(target_path, bare=True)
-    
+
     return make_message_response("clone success")
 
 @bp.route('/mirror/<path:url>', methods = ["POST"])
@@ -85,12 +85,12 @@ def mirror(name, url):
     target_path = endwith_git(target_path)
 
     repository_exist = is_repository(target_path)
-    
+
     if repository_exist:
         raise JagareError("repository already exists", 409)
 
     Jagare.mirror(url, target_path)
-    
+
     return make_message_response("Mirror success.")
 
 
